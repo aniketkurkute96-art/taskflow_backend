@@ -236,6 +236,24 @@ export const processTaskCompletion = async (
     'pending_approval'
   );
 
+  // Log the approval workflow with details of pending approvers
+  if (approvers.length > 0) {
+    const approverUsers = await prisma.user.findMany({
+      where: { id: { in: approvers.map(a => a.approverUserId) } },
+      select: { id: true, name: true }
+    });
+    
+    const approverNames = approverUsers.map(u => u.name).join(', ');
+    await createActivityLog(
+      taskId,
+      null,
+      'approval_workflow_created',
+      `Approval workflow created with ${approvers.length} level(s). Pending approval from: ${approverNames}`,
+      null,
+      null
+    );
+  }
+
   return { success: true, approvers };
 };
 

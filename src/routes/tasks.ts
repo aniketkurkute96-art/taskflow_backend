@@ -15,7 +15,7 @@ import {
   getTaskComments,
   getWaitingOnTasks,
 } from '../controllers/taskController';
-import { getTaskActivityLogs } from '../controllers/activityLogController';
+import { getTaskActivityLogs, getTaskTimeline } from '../controllers/activityLogController';
 
 const router = Router();
 
@@ -27,6 +27,7 @@ router.get('/waiting-on', getWaitingOnTasks);
 router.get('/', getTasks);
 router.get('/:id', getTaskById);
 router.get('/:taskId/activity', getTaskActivityLogs);
+router.get('/:taskId/timeline', getTaskTimeline);
 router.get('/:taskId/comments', getTaskComments);
 router.post('/', createTask);
 router.patch('/:id', updateTask);
