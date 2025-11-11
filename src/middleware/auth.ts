@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
 import prisma from '../database';
+
+// Simple authentication - token is just user ID
 
 export interface AuthRequest extends Request {
   user?: {
@@ -22,12 +23,12 @@ export const authenticate = async (
       return;
     }
 
-    const token = authHeader.substring(7);
-    const decoded = verifyToken(token);
+    // Token is just the user ID
+    const userId = authHeader.substring(7);
 
-    // Verify user still exists and is active
+    // Verify user exists and is active
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { id: userId },
     });
 
     if (!user || !user.active) {
@@ -36,9 +37,9 @@ export const authenticate = async (
     }
 
     req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
+      userId: user.id,
+      email: user.email,
+      role: user.role,
     };
 
     next();

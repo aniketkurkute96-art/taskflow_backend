@@ -1,10 +1,7 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import { generateToken } from '../utils/jwt';
 import prisma from '../database';
 
-// NOTE: In production, replace plaintext passwords with bcrypt.hash()
-// For prototype, we're using plaintext 'password' for seeded users
+// Simple authentication - plain password comparison
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -25,14 +22,12 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Hash password (in production, always use bcrypt)
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+    // Store password as plain text (simplified auth)
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
+        password, // Plain text password
         role: role || 'assignee',
         departmentId,
         active: true,
@@ -47,15 +42,10 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
+    // Return user info with simple token (just user ID)
     res.status(201).json({
       user,
-      token,
+      token: user.id, // Simple token = user ID
     });
   } catch (error: any) {
     console.error('Signup error:', error);
@@ -81,27 +71,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // For seeded users with plaintext 'password', check both
-    let isValidPassword = false;
-    if (user.password === 'password') {
-      // Seeded user with plaintext password
-      isValidPassword = password === 'password';
-    } else {
-      // Hashed password
-      isValidPassword = await bcrypt.compare(password, user.password);
-    }
-
-    if (!isValidPassword) {
+    // Simple password comparison (plain text)
+    if (user.password !== password) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
-
+    // Return user info with simple token
     res.json({
       user: {
         id: user.id,
@@ -111,7 +87,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         departmentId: user.departmentId,
         active: user.active,
       },
-      token,
+      token: user.id, // Simple token = user ID
     });
   } catch (error: any) {
     console.error('Login error:', error);
