@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./data/taskflow.db"
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  password     String       // NOTE: In production, use bcrypt.hash() - currently plaintext for prototype
+  role         String       // 'admin' | 'creator' | 'hod' | 'cfo' | 'assignee'
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  createdTasks    Task[]           @relation("TaskCreator")
+  assignedTasks   Task[]           @relation("TaskAssignee")
+  taskNodesFrom   TaskNode[]       @relation("NodeFrom")
+  taskNodesTo     TaskNode[]       @relation("NodeTo")
+  taskApprovers   TaskApprover[]
+  comments        Comment[]
+  attachments     Attachment[]
+  checklistItems  ChecklistItem[]
+
+  @@map("users")
+}
+
+model Department {
+  id        String       @id @default(uuid())
+  name      String
+  parentId  String?
+  parent    Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentHierarchy")
+  users     User[]
+  tasks     Task[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@map("departments")
+}
+
+model Task {
+  id                 String       @id @default(uuid())
+  title              String
+  description        String?
+  creatorId          String
+  creator            User         @relation("TaskCreator", fields: [creatorId], references: [id])
+  assigneeId         String?
+  assignee           User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assigneeType       String?      // 'user' | 'department'
+  departmentId       String?
+  department         Department?  @relation(fields: [departmentId], references: [id])
+  amount             Float?
+  approvalType       String       // '360' | 'specific' | 'predefined'
+  approvalTemplateId String?
+  approvalTemplate   ApprovalTemplate? @relation(fields: [approvalTemplateId], references: [id])
+  status             String       @default("open") // 'open' | 'in_progress' | 'pending_approval' | 'approved' | 'rejected' | 'completed'
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  nodes          TaskNode[]
+  approvers      TaskApprover[]
+  comments       Comment[]
+  attachments    Attachment[]
+  checklistItems ChecklistItem[]
+
+  @@map("tasks")
+}
+
+model TaskNode {
+  id          String   @id @default(uuid())
+  taskId      String
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromUserId  String
+  fromUser    User     @relation("NodeFrom", fields: [fromUserId], references: [id])
+  toUserId    String
+  toUser      User     @relation("NodeTo", fields: [toUserId], references: [id])
+  forwardedAt DateTime @default(now())
+
+  @@map("task_nodes")
+}
+
+model TaskApprover {
+  id            String   @id @default(uuid())
+  taskId        String
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  levelOrder    Int      // 1, 2, 3... (order in approval queue)
+  approverUserId String
+  approver      User     @relation(fields: [approverUserId], references: [id])
+  status        String   @default("pending") // 'pending' | 'approved' | 'rejected'
+  actionAt      DateTime?
+
+  @@unique([taskId, levelOrder])
+  @@map("task_approvers")
+}
+
+model ApprovalTemplate {
+  id           String                @id @default(uuid())
+  name         String
+  conditionJson String               @default("{}") // JSON: { department?: string, amount_min?: number }
+  isActive     Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  tasks   Task[]
+  stages  ApprovalTemplateStage[]
+
+  @@map("approval_templates")
+}
+
+model ApprovalTemplateStage {
+  id            String           @id @default(uuid())
+  templateId    String
+  template      ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  levelOrder    Int              // 1, 2, 3...
+  approverType  String           // 'user' | 'role' | 'dynamic_role'
+  approverValue String           // user id or role/dynamic keyword like 'HOD'
+  conditionJson String           @default("{}") // Additional conditions per stage
+
+  @@unique([templateId, levelOrder])
+  @@map("approval_template_stages")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@map("comments")
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  filename  String
+  filepath  String
+  fileSize  Int?
+  mimeType  String?
+  createdAt DateTime @default(now())
+
+  @@map("attachments")
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("checklist_items")
+}
+
