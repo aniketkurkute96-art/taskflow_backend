@@ -7,6 +7,7 @@ import {
   processRejection,
 } from '../services/approvalEngine';
 import { createActivityLog } from './activityLogController';
+import { format } from 'date-fns';
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -550,25 +551,96 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
-    // Create activity log for task edit
-    const changes: string[] = [];
-    if (title !== undefined && title !== task.title) changes.push('title');
-    if (description !== undefined && description !== task.description) changes.push('description');
-    if (assigneeId !== undefined && assigneeId !== task.assigneeId) changes.push('assignee');
-    if (departmentId !== undefined && departmentId !== task.departmentId) changes.push('department');
-    if (amount !== undefined) changes.push('amount');
-    if (startDate !== undefined) changes.push('start date');
-    if (dueDate !== undefined) changes.push('due date');
-
-    if (changes.length > 0) {
+    // Create separate activity logs for each field change with old and new values
+    const userName = user?.name || 'Unknown';
+    
+    if (title !== undefined && title !== task.title) {
       await createActivityLog(
         id,
         req.user!.userId,
-        'edited',
-        `Task updated by ${user?.name || 'Unknown'} - changed: ${changes.join(', ')}`,
-        null,
-        null
+        'field_changed',
+        `${userName} changed title`,
+        task.title,
+        title
       );
+    }
+
+    if (description !== undefined && description !== task.description) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed description`,
+        task.description || '(empty)',
+        description || '(empty)'
+      );
+    }
+
+    if (assigneeId !== undefined && assigneeId !== task.assigneeId) {
+      const oldAssignee = task.assigneeId ? await prisma.user.findUnique({ where: { id: task.assigneeId }, select: { name: true } }) : null;
+      const newAssignee = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId }, select: { name: true } }) : null;
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed assignee`,
+        oldAssignee?.name || 'None',
+        newAssignee?.name || 'None'
+      );
+    }
+
+    if (departmentId !== undefined && departmentId !== task.departmentId) {
+      const oldDept = task.departmentId ? await prisma.department.findUnique({ where: { id: task.departmentId }, select: { name: true } }) : null;
+      const newDept = departmentId ? await prisma.department.findUnique({ where: { id: departmentId }, select: { name: true } }) : null;
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed department`,
+        oldDept?.name || 'None',
+        newDept?.name || 'None'
+      );
+    }
+
+    if (amount !== undefined && amount !== task.amount) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed amount`,
+        task.amount ? `$${task.amount}` : 'None',
+        amount ? `$${amount}` : 'None'
+      );
+    }
+
+    if (startDate !== undefined) {
+      const oldStartDate = task.startDate ? format(new Date(task.startDate), 'MMM dd, yyyy') : 'None';
+      const newStartDate = startDate ? format(new Date(startDate), 'MMM dd, yyyy') : 'None';
+      if (oldStartDate !== newStartDate) {
+        await createActivityLog(
+          id,
+          req.user!.userId,
+          'field_changed',
+          `${userName} changed start date`,
+          oldStartDate,
+          newStartDate
+        );
+      }
+    }
+
+    if (dueDate !== undefined) {
+      const oldDueDate = task.dueDate ? format(new Date(task.dueDate), 'MMM dd, yyyy') : 'None';
+      const newDueDate = dueDate ? format(new Date(dueDate), 'MMM dd, yyyy') : 'None';
+      if (oldDueDate !== newDueDate) {
+        await createActivityLog(
+          id,
+          req.user!.userId,
+          'field_changed',
+          `${userName} changed due date`,
+          oldDueDate,
+          newDueDate
+        );
+      }
     }
 
     res.json(updatedTask);
@@ -599,14 +671,14 @@ export const addComment = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
-    // Create activity log for comment
+    // Create activity log for comment with the actual comment content
     await createActivityLog(
       id,
       req.user!.userId,
       'commented',
-      `${comment.user.name} added a comment`,
+      `${comment.user.name} commented: "${content}"`,
       null,
-      null
+      content
     );
 
     res.status(201).json(comment);
