@@ -44,7 +44,7 @@ async function main() {
     data: {
       name: 'Admin User',
       email: 'admin@example.com',
-      password: 'password',
+      password: 'pass-word',
       role: 'admin',
       active: true,
     },
