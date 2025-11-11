@@ -30,6 +30,7 @@ model User {
   comments        Comment[]
   attachments     Attachment[]
   checklistItems  ChecklistItem[]
+  activityLogs    ActivityLog[]
 
   @@map("users")
 }
@@ -64,6 +65,8 @@ model Task {
   approvalTemplateId String?            @db.ObjectId
   approvalTemplate   ApprovalTemplate?  @relation(fields: [approvalTemplateId], references: [id])
   status             String             @default("open")
+  startDate          DateTime?
+  dueDate            DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -72,6 +75,7 @@ model Task {
   comments       Comment[]
   attachments    Attachment[]
   checklistItems ChecklistItem[]
+  activityLogs   ActivityLog[]
 
   @@map("tasks")
 }
@@ -167,4 +171,19 @@ model ChecklistItem {
   updatedAt DateTime @updatedAt
 
   @@map("checklist_items")
+}
+
+model ActivityLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId      String   @db.ObjectId
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId      String?  @db.ObjectId
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String   // e.g., "created", "status_changed", "assigned", "commented", "attachment_added"
+  description String   // Human-readable description
+  oldValue    String?  // Previous value (for changes)
+  newValue    String?  // New value (for changes)
+  createdAt   DateTime @default(now())
+
+  @@map("activity_logs")
 }
