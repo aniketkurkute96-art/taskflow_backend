@@ -1,5 +1,4 @@
 import { Response } from 'express';
-import bcrypt from 'bcryptjs';
 import { AuthRequest } from '../middleware/auth';
 import prisma from '../database';
 
@@ -87,14 +86,12 @@ export const createUser = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+    // Store plain password (simplified auth)
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        password: hashedPassword,
+        password, // Plain text password
         role: role || 'assignee',
         departmentId,
         active: active !== undefined ? active : true,
@@ -130,7 +127,7 @@ export const updateUser = async (req: AuthRequest, res: Response): Promise<void>
     if (departmentId !== undefined) updateData.departmentId = departmentId;
     if (active !== undefined) updateData.active = active;
     if (password !== undefined) {
-      updateData.password = await bcrypt.hash(password, 10);
+      updateData.password = password; // Plain text password
     }
 
     const user = await prisma.user.update({

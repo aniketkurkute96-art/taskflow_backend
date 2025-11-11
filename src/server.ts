@@ -11,7 +11,6 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import departmentRoutes from './routes/departments';
 import taskRoutes from './routes/tasks';
-import approvalTemplateRoutes from './routes/approvalTemplates';
 import dashboardRoutes from './routes/dashboard';
 
 // Load environment variables
@@ -59,7 +58,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/admin/templates', approvalTemplateRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Error handling middleware
