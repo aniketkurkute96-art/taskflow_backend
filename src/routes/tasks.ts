@@ -8,6 +8,7 @@ import {
   completeTask,
   approveTask,
   rejectTask,
+  updateTask,
   updateTaskStatus,
   getApprovalBucket,
   addComment,
@@ -22,6 +23,7 @@ router.get('/approval/bucket', getApprovalBucket);
 router.get('/', getTasks);
 router.get('/:id', getTaskById);
 router.post('/', createTask);
+router.patch('/:id', updateTask);
 router.patch('/:id/status', updateTaskStatus);
 router.post('/:id/forward', forwardTask);
 router.post('/:id/complete', completeTask);

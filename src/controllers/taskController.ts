@@ -427,6 +427,68 @@ export const getApprovalBucket = async (req: AuthRequest, res: Response): Promis
   }
 };
 
+export const updateTask = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      description,
+      assigneeId,
+      departmentId,
+      amount,
+      startDate,
+      dueDate,
+    } = req.body;
+
+    const task = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!task) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    // Check if user is admin or assignee
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+    });
+
+    const isAdmin = user?.role === 'admin';
+    const isAssignee = task.assigneeId === req.user!.userId;
+
+    if (!isAdmin && !isAssignee) {
+      res.status(403).json({ error: 'Only admin or assignee can edit task' });
+      return;
+    }
+
+    // Build update data
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
+    if (departmentId !== undefined) updateData.departmentId = departmentId;
+    if (amount !== undefined) updateData.amount = amount ? parseFloat(amount) : null;
+    if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
+    if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: updateData,
+      include: {
+        creator: { select: { id: true, name: true, email: true } },
+        assignee: { select: { id: true, name: true, email: true } },
+        department: true,
+      },
+    });
+
+    res.json(updatedTask);
+  } catch (error: any) {
+    console.error('Update task error:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+};
+
 export const addComment = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
