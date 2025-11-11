@@ -6,6 +6,7 @@ import {
   processApproval,
   processRejection,
 } from '../services/approvalEngine';
+import { createActivityLog } from './activityLogController';
 
 export const createTask = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -64,6 +65,31 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
             status: 'pending',
           },
         });
+      }
+    }
+
+    // Create activity log for task creation
+    await createActivityLog(
+      task.id,
+      req.user!.userId,
+      'created',
+      `Task created by ${task.creator.name}`,
+      null,
+      'open'
+    );
+
+    // If assigned, log assignment
+    if (assigneeId) {
+      const assigneeUser = await prisma.user.findUnique({ where: { id: assigneeId } });
+      if (assigneeUser) {
+        await createActivityLog(
+          task.id,
+          req.user!.userId,
+          'assigned',
+          `Task assigned to ${assigneeUser.name}`,
+          null,
+          assigneeUser.name
+        );
       }
     }
 
@@ -218,6 +244,16 @@ export const forwardTask = async (req: AuthRequest, res: Response): Promise<void
         status: task.status === 'open' ? 'in_progress' : task.status,
       },
     });
+
+    // Create activity log for forward
+    await createActivityLog(
+      id,
+      req.user!.userId,
+      'forwarded',
+      `Task forwarded from ${node.fromUser.name} to ${node.toUser.name}`,
+      node.fromUser.name,
+      node.toUser.name
+    );
 
     res.json(node);
   } catch (error: any) {
@@ -388,6 +424,22 @@ export const updateTaskStatus = async (req: AuthRequest, res: Response): Promise
       },
     });
 
+    // Create activity log for status change
+    const statusLabels: Record<string, string> = {
+      open: 'Open',
+      in_progress: 'In Progress',
+      rejected: 'Rejected',
+    };
+    
+    await createActivityLog(
+      id,
+      req.user!.userId,
+      'status_changed',
+      `Status changed from ${statusLabels[task.status] || task.status} to ${statusLabels[status] || status}`,
+      task.status,
+      status
+    );
+
     res.json(updatedTask);
   } catch (error: any) {
     console.error('Update task status error:', error);
@@ -510,9 +562,83 @@ export const addComment = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
+    // Create activity log for comment
+    await createActivityLog(
+      id,
+      req.user!.userId,
+      'commented',
+      `${comment.user.name} added a comment`,
+      null,
+      null
+    );
+
     res.status(201).json(comment);
   } catch (error: any) {
     console.error('Add comment error:', error);
     res.status(500).json({ error: 'Failed to add comment' });
+  }
+};
+
+export const getTaskComments = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { taskId } = req.params;
+
+    const comments = await prisma.comment.findMany({
+      where: { taskId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json(comments);
+  } catch (error: any) {
+    console.error('Get comments error:', error);
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+};
+
+// Get tasks user has forwarded (Waiting On)
+export const getWaitingOnTasks = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Find all task nodes where user forwarded to someone
+    const forwardedNodes = await prisma.taskNode.findMany({
+      where: { fromUserId: req.user!.userId },
+      include: {
+        task: {
+          include: {
+            creator: { select: { id: true, name: true, email: true } },
+            assignee: { select: { id: true, name: true, email: true } },
+            department: true,
+            _count: {
+              select: {
+                approvers: { where: { status: 'pending' } },
+                comments: true,
+              },
+            },
+          },
+        },
+        toUser: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { forwardedAt: 'desc' },
+    });
+
+    // Filter to show only tasks that are still with the forwarded user or pending
+    const waitingOnTasks = forwardedNodes.filter(
+      node => 
+        node.task.assigneeId === node.toUserId || 
+        ['pending_approval', 'in_progress'].includes(node.task.status)
+    );
+
+    res.json(waitingOnTasks);
+  } catch (error: any) {
+    console.error('Get waiting on tasks error:', error);
+    res.status(500).json({ error: 'Failed to fetch waiting on tasks' });
   }
 };

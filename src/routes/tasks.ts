@@ -12,7 +12,10 @@ import {
   updateTaskStatus,
   getApprovalBucket,
   addComment,
+  getTaskComments,
+  getWaitingOnTasks,
 } from '../controllers/taskController';
+import { getTaskActivityLogs } from '../controllers/activityLogController';
 
 const router = Router();
 
@@ -20,8 +23,11 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/approval/bucket', getApprovalBucket);
+router.get('/waiting-on', getWaitingOnTasks);
 router.get('/', getTasks);
 router.get('/:id', getTaskById);
+router.get('/:taskId/activity', getTaskActivityLogs);
+router.get('/:taskId/comments', getTaskComments);
 router.post('/', createTask);
 router.patch('/:id', updateTask);
 router.patch('/:id/status', updateTaskStatus);
