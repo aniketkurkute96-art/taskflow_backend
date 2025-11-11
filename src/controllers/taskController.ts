@@ -477,7 +477,7 @@ export const getApprovalBucket = async (req: AuthRequest, res: Response): Promis
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { levelOrder: 'asc' },
     });
 
     res.json(approvals);
