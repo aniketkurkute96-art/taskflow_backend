@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import prisma from '../database';
 
-// Simple authentication - token is just user ID
+// Simple authentication with MongoDB
 
 export interface AuthRequest extends Request {
   user?: {
@@ -9,55 +10,6 @@ export interface AuthRequest extends Request {
     role: string;
   };
 }
-
-// HARDCODED USERS - Same as in authController
-const USERS = [
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    password: 'password',
-    role: 'admin',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '2',
-    name: 'John Creator',
-    email: 'creator@example.com',
-    password: 'password',
-    role: 'creator',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '3',
-    name: 'Jane Assignee',
-    email: 'assignee@example.com',
-    password: 'password',
-    role: 'assignee',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '4',
-    name: 'Bob HOD',
-    email: 'hod@example.com',
-    password: 'password',
-    role: 'hod',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '5',
-    name: 'Alice CFO',
-    email: 'cfo@example.com',
-    password: 'password',
-    role: 'cfo',
-    departmentId: '2',
-    active: true,
-  },
-];
 
 export const authenticate = async (
   req: AuthRequest,
@@ -74,8 +26,10 @@ export const authenticate = async (
     // Token is just the user ID
     const userId = authHeader.substring(7);
 
-    // Find user in hardcoded array
-    const user = USERS.find(u => u.id === userId);
+    // Find user in MongoDB
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
     if (!user || !user.active) {
       res.status(401).json({ error: 'User not found or inactive' });
@@ -90,6 +44,7 @@ export const authenticate = async (
 
     next();
   } catch (error) {
+    console.error('Auth error:', error);
     res.status(401).json({ error: 'Invalid token' });
   }
 };

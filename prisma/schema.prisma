@@ -6,18 +6,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id           String       @id @default(uuid())
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
   name         String
   email        String       @unique
-  password     String       // NOTE: In production, use bcrypt.hash() - currently plaintext for prototype
-  role         String       // 'admin' | 'creator' | 'hod' | 'cfo' | 'assignee'
-  departmentId String?
-  department   Department?  @relation(fields: [departmentId], references: [id])
+  password     String
+  role         String
+  departmentId String?      @db.ObjectId
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   active       Boolean      @default(true)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -35,10 +35,10 @@ model User {
 }
 
 model Department {
-  id        String       @id @default(uuid())
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
   name      String
-  parentId  String?
-  parent    Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  parentId  String?      @db.ObjectId
+  parent    Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children  Department[] @relation("DepartmentHierarchy")
   users     User[]
   tasks     Task[]
@@ -49,23 +49,23 @@ model Department {
 }
 
 model Task {
-  id                 String       @id @default(uuid())
+  id                 String             @id @default(auto()) @map("_id") @db.ObjectId
   title              String
   description        String?
-  creatorId          String
-  creator            User         @relation("TaskCreator", fields: [creatorId], references: [id])
-  assigneeId         String?
-  assignee           User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  assigneeType       String?      // 'user' | 'department'
-  departmentId       String?
-  department         Department?  @relation(fields: [departmentId], references: [id])
+  creatorId          String             @db.ObjectId
+  creator            User               @relation("TaskCreator", fields: [creatorId], references: [id])
+  assigneeId         String?            @db.ObjectId
+  assignee           User?              @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assigneeType       String?
+  departmentId       String?            @db.ObjectId
+  department         Department?        @relation(fields: [departmentId], references: [id])
   amount             Float?
-  approvalType       String       // '360' | 'specific' | 'predefined'
-  approvalTemplateId String?
-  approvalTemplate   ApprovalTemplate? @relation(fields: [approvalTemplateId], references: [id])
-  status             String       @default("open") // 'open' | 'in_progress' | 'pending_approval' | 'approved' | 'rejected' | 'completed'
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  approvalType       String
+  approvalTemplateId String?            @db.ObjectId
+  approvalTemplate   ApprovalTemplate?  @relation(fields: [approvalTemplateId], references: [id])
+  status             String             @default("open")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   nodes          TaskNode[]
   approvers      TaskApprover[]
@@ -77,12 +77,12 @@ model Task {
 }
 
 model TaskNode {
-  id          String   @id @default(uuid())
-  taskId      String
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId      String   @db.ObjectId
   task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  fromUserId  String
+  fromUserId  String   @db.ObjectId
   fromUser    User     @relation("NodeFrom", fields: [fromUserId], references: [id])
-  toUserId    String
+  toUserId    String   @db.ObjectId
   toUser      User     @relation("NodeTo", fields: [toUserId], references: [id])
   forwardedAt DateTime @default(now())
 
@@ -90,26 +90,25 @@ model TaskNode {
 }
 
 model TaskApprover {
-  id            String   @id @default(uuid())
-  taskId        String
-  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  levelOrder    Int      // 1, 2, 3... (order in approval queue)
-  approverUserId String
-  approver      User     @relation(fields: [approverUserId], references: [id])
-  status        String   @default("pending") // 'pending' | 'approved' | 'rejected'
-  actionAt      DateTime?
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  taskId         String    @db.ObjectId
+  task           Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  levelOrder     Int
+  approverUserId String    @db.ObjectId
+  approver       User      @relation(fields: [approverUserId], references: [id])
+  status         String    @default("pending")
+  actionAt       DateTime?
 
-  @@unique([taskId, levelOrder])
   @@map("task_approvers")
 }
 
 model ApprovalTemplate {
-  id           String                @id @default(uuid())
-  name         String
-  conditionJson String               @default("{}") // JSON: { department?: string, amount_min?: number }
-  isActive     Boolean               @default(true)
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id            String                @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  conditionJson String                @default("{}")
+  isActive      Boolean               @default(true)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   tasks   Task[]
   stages  ApprovalTemplateStage[]
@@ -118,23 +117,22 @@ model ApprovalTemplate {
 }
 
 model ApprovalTemplateStage {
-  id            String           @id @default(uuid())
-  templateId    String
+  id            String           @id @default(auto()) @map("_id") @db.ObjectId
+  templateId    String           @db.ObjectId
   template      ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  levelOrder    Int              // 1, 2, 3...
-  approverType  String           // 'user' | 'role' | 'dynamic_role'
-  approverValue String           // user id or role/dynamic keyword like 'HOD'
-  conditionJson String           @default("{}") // Additional conditions per stage
+  levelOrder    Int
+  approverType  String
+  approverValue String
+  conditionJson String           @default("{}")
 
-  @@unique([templateId, levelOrder])
   @@map("approval_template_stages")
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  taskId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId    String
+  userId    String   @db.ObjectId
   user      User     @relation(fields: [userId], references: [id])
   content   String
   createdAt DateTime @default(now())
@@ -143,10 +141,10 @@ model Comment {
 }
 
 model Attachment {
-  id        String   @id @default(uuid())
-  taskId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId    String
+  userId    String   @db.ObjectId
   user      User     @relation(fields: [userId], references: [id])
   filename  String
   filepath  String
@@ -158,10 +156,10 @@ model Attachment {
 }
 
 model ChecklistItem {
-  id        String   @id @default(uuid())
-  taskId    String
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  taskId    String   @db.ObjectId
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId    String
+  userId    String   @db.ObjectId
   user      User     @relation(fields: [userId], references: [id])
   title     String
   completed Boolean  @default(false)
@@ -170,4 +168,3 @@ model ChecklistItem {
 
   @@map("checklist_items")
 }
-

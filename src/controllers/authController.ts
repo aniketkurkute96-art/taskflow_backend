@@ -1,57 +1,11 @@
 import { Request, Response } from 'express';
+import prisma from '../database';
 
-// HARDCODED USERS - No database needed!
-const USERS = [
-  {
-    id: '1',
-    name: 'Admin User',
-    email: 'admin@example.com',
-    password: 'password',
-    role: 'admin',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '2',
-    name: 'John Creator',
-    email: 'creator@example.com',
-    password: 'password',
-    role: 'creator',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '3',
-    name: 'Jane Assignee',
-    email: 'assignee@example.com',
-    password: 'password',
-    role: 'assignee',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '4',
-    name: 'Bob HOD',
-    email: 'hod@example.com',
-    password: 'password',
-    role: 'hod',
-    departmentId: '1',
-    active: true,
-  },
-  {
-    id: '5',
-    name: 'Alice CFO',
-    email: 'cfo@example.com',
-    password: 'password',
-    role: 'cfo',
-    departmentId: '2',
-    active: true,
-  },
-];
+// Simple authentication with MongoDB
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, departmentId } = req.body;
 
     if (!name || !email || !password) {
       res.status(400).json({ error: 'Name, email, and password are required' });
@@ -59,36 +13,38 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check if user already exists
-    const existingUser = USERS.find(u => u.email === email);
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
     if (existingUser) {
       res.status(400).json({ error: 'User already exists' });
       return;
     }
 
-    // Create new user
-    const newUser = {
-      id: String(USERS.length + 1),
-      name,
-      email,
-      password,
-      role: role || 'assignee',
-      departmentId: '1',
-      active: true,
-    };
+    // Create user in MongoDB
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password, // Plain text password
+        role: role || 'assignee',
+        departmentId,
+        active: true,
+      },
+    });
 
-    USERS.push(newUser);
-
-    // Return user info (without password)
+    // Return user info
     res.status(201).json({
       user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-        departmentId: newUser.departmentId,
-        active: newUser.active,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        departmentId: user.departmentId,
+        active: user.active,
       },
-      token: newUser.id,
+      token: user.id,
     });
   } catch (error: any) {
     console.error('Signup error:', error);
@@ -100,19 +56,21 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
-    console.log('Login attempt:', { email, password });
+    console.log('Login attempt:', { email });
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
-    // Find user in hardcoded array
-    const user = USERS.find(u => u.email === email);
+    // Find user in MongoDB
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
     console.log('User found:', user ? 'Yes' : 'No');
 
-    if (!user) {
+    if (!user || !user.active) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }

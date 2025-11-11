@@ -2,13 +2,10 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// NOTE: In production, replace plaintext 'password' with bcrypt.hash('password', 10)
-// For prototype, we're using plaintext 'password' for all seeded users
-
 async function main() {
-  console.log('🌱 Starting database seed...');
+  console.log('🌱 Starting MongoDB database seed...');
 
-  // Clear existing data (optional - comment out if you want to preserve data)
+  // Clear existing data
   console.log('Clearing existing data...');
   await prisma.taskApprover.deleteMany();
   await prisma.taskNode.deleteMany();
@@ -47,7 +44,7 @@ async function main() {
     data: {
       name: 'Admin User',
       email: 'admin@example.com',
-      password: 'password', // Plaintext for prototype - use bcrypt in production
+      password: 'password',
       role: 'admin',
       active: true,
     },
