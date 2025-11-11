@@ -671,15 +671,8 @@ export const addComment = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
-    // Create activity log for comment with the actual comment content
-    await createActivityLog(
-      id,
-      req.user!.userId,
-      'commented',
-      `${comment.user.name} commented: "${content}"`,
-      null,
-      content
-    );
+    // No need to create activity log - comments are already shown in the timeline
+    // as separate entries from the Comment model
 
     res.status(201).json(comment);
   } catch (error: any) {
