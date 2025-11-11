@@ -13,13 +13,13 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
-// All routes require admin role
-router.use(requireRole('admin'));
-
+// GET routes - accessible to all authenticated users
 router.get('/', getUsers);
 router.get('/:id', getUserById);
-router.post('/', createUser);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+
+// Write routes - admin only
+router.post('/', requireRole('admin'), createUser);
+router.put('/:id', requireRole('admin'), updateUser);
+router.delete('/:id', requireRole('admin'), deleteUser);
 
 export default router;
