@@ -33,11 +33,12 @@ export const createActivityLog = async (
   userId: string | null,
   action: string,
   description: string,
-  oldValue?: string,
-  newValue?: string
+  oldValue?: string | null,
+  newValue?: string | null
 ): Promise<void> => {
+  console.log('[createActivityLog] Called with:', { taskId, userId, action, description, oldValue, newValue });
   try {
-    await prisma.activityLog.create({
+    const log = await prisma.activityLog.create({
       data: {
         taskId,
         userId,
@@ -47,8 +48,10 @@ export const createActivityLog = async (
         newValue: newValue || null,
       },
     });
+    console.log('[createActivityLog] Success! Log ID:', log.id);
   } catch (error) {
-    console.error('Error creating activity log:', error);
+    console.error('[createActivityLog] Error creating activity log:', error);
+    throw error; // Re-throw so caller knows it failed
   }
 };
 

@@ -431,14 +431,22 @@ export const updateTaskStatus = async (req: AuthRequest, res: Response): Promise
       rejected: 'Rejected',
     };
     
-    await createActivityLog(
-      id,
-      req.user!.userId,
-      'status_changed',
-      `Status changed from ${statusLabels[task.status] || task.status} to ${statusLabels[status] || status}`,
-      task.status,
-      status
-    );
+    console.log(`[DEBUG] Creating activity log for status change: ${task.status} -> ${status}`);
+    console.log(`[DEBUG] Task ID: ${id}, User ID: ${req.user!.userId}`);
+    
+    try {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'status_changed',
+        `Status changed from ${statusLabels[task.status] || task.status} to ${statusLabels[status] || status}`,
+        task.status,
+        status
+      );
+      console.log('[DEBUG] Activity log created successfully');
+    } catch (logError) {
+      console.error('[DEBUG] Failed to create activity log:', logError);
+    }
 
     res.json(updatedTask);
   } catch (error: any) {
