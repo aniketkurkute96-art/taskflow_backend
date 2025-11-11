@@ -542,6 +542,27 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
       },
     });
 
+    // Create activity log for task edit
+    const changes: string[] = [];
+    if (title !== undefined && title !== task.title) changes.push('title');
+    if (description !== undefined && description !== task.description) changes.push('description');
+    if (assigneeId !== undefined && assigneeId !== task.assigneeId) changes.push('assignee');
+    if (departmentId !== undefined && departmentId !== task.departmentId) changes.push('department');
+    if (amount !== undefined) changes.push('amount');
+    if (startDate !== undefined) changes.push('start date');
+    if (dueDate !== undefined) changes.push('due date');
+
+    if (changes.length > 0) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'edited',
+        `Task updated by ${user?.name || 'Unknown'} - changed: ${changes.join(', ')}`,
+        null,
+        null
+      );
+    }
+
     res.json(updatedTask);
   } catch (error: any) {
     console.error('Update task error:', error);

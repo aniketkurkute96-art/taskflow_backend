@@ -1,5 +1,6 @@
 import prisma from '../database';
 import { Task, TaskNode, TaskApprover, ApprovalTemplate } from '@prisma/client';
+import { createActivityLog } from '../controllers/activityLogController';
 
 /**
  * Match an approval template based on conditionJson
@@ -225,6 +226,16 @@ export const processTaskCompletion = async (
     data: { status: 'pending_approval' },
   });
 
+  // Create activity log for task completion submission
+  await createActivityLog(
+    taskId,
+    completerUserId,
+    'submitted_for_approval',
+    `Task submitted for approval (${task.approvalType} approval type)`,
+    'in_progress',
+    'pending_approval'
+  );
+
   return { success: true, approvers };
 };
 
@@ -276,6 +287,22 @@ export const processApproval = async (
     },
   });
 
+  // Get approver name for logging
+  const approverUser = await prisma.user.findUnique({
+    where: { id: approverUserId },
+    select: { name: true },
+  });
+
+  // Create activity log for approval
+  await createActivityLog(
+    taskId,
+    approverUserId,
+    'approved',
+    `Approved by ${approverUser?.name || 'Unknown'} (Level ${currentApprover.levelOrder})`,
+    'pending',
+    'approved'
+  );
+
   // Check if this was the last approver
   const remainingApprovers = task.approvers.filter((a) => a.status === 'pending');
   const isComplete = remainingApprovers.length === 1; // This was the last one
@@ -286,6 +313,16 @@ export const processApproval = async (
       where: { id: taskId },
       data: { status: 'approved' },
     });
+
+    // Create activity log for final approval
+    await createActivityLog(
+      taskId,
+      approverUserId,
+      'completed',
+      `Task fully approved and completed`,
+      'pending_approval',
+      'approved'
+    );
 
     // TODO: Send notification to creator (console log for now)
     console.log(`Task ${taskId} approved. Notifying creator ${task.creatorId}`);
@@ -334,6 +371,26 @@ export const processRejection = async (
   if (!targetUserId) {
     return { success: false, error: 'No target user found for rejection' };
   }
+
+  // Get user names for logging
+  const approverUser = await prisma.user.findUnique({
+    where: { id: approverUserId },
+    select: { name: true },
+  });
+  const targetUser = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { name: true },
+  });
+
+  // Create activity log for rejection
+  await createActivityLog(
+    taskId,
+    approverUserId,
+    'rejected',
+    `Rejected by ${approverUser?.name || 'Unknown'} and sent back to ${targetUser?.name || 'Unknown'}`,
+    'pending_approval',
+    'rejected'
+  );
 
   // Create forward node back to assignee/creator
   await prisma.taskNode.create({
