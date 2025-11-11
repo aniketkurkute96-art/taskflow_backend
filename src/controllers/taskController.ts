@@ -14,6 +14,12 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
     const {
       title,
       description,
+      startDate,
+      dueDate,
+      priorityFlag,
+      priorityNotes,
+      recurrenceType,
+      recurrenceRule,
       assigneeId,
       assigneeType,
       departmentId,
@@ -39,6 +45,12 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
         title,
         description,
         creatorId: req.user!.userId,
+        startDate: startDate ? new Date(startDate) : undefined,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        priorityFlag: priorityFlag || 'NONE',
+        priorityNotes,
+        recurrenceType: recurrenceType || 'none',
+        recurrenceRule,
         assigneeId,
         assigneeType,
         departmentId,
@@ -116,6 +128,11 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
         creator: { select: { id: true, name: true, email: true } },
         assignee: { select: { id: true, name: true, email: true } },
         department: true,
+        approvers: {
+          select: {
+            status: true,
+          },
+        },
         _count: {
           select: {
             approvers: { where: { status: 'pending' } },
@@ -126,7 +143,32 @@ export const getTasks = async (req: AuthRequest, res: Response): Promise<void> =
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json(tasks);
+    const tasksWithApprovalStatus = tasks.map((task) => {
+      const approvers = task.approvers || [];
+      let approvalStatus = 'none';
+
+      if (approvers.length > 0) {
+        const statuses = approvers.map((a) => a.status);
+        if (statuses.includes('rejected')) {
+          approvalStatus = 'rejected';
+        } else if (statuses.every((status) => status === 'approved')) {
+          approvalStatus = 'approved';
+        } else if (statuses.some((status) => status === 'approved')) {
+          approvalStatus = 'partial';
+        } else {
+          approvalStatus = 'pending';
+        }
+      } else if (task.status === 'pending_approval') {
+        approvalStatus = 'pending';
+      }
+
+      return {
+        ...task,
+        approvalStatus,
+      };
+    });
+
+    res.json(tasksWithApprovalStatus);
   } catch (error: any) {
     console.error('Get tasks error:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -183,7 +225,26 @@ export const getTaskById = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    res.json(task);
+    let approvalStatus = 'none';
+    if (task.approvers.length > 0) {
+      const statuses = task.approvers.map((a) => a.status);
+      if (statuses.includes('rejected')) {
+        approvalStatus = 'rejected';
+      } else if (statuses.every((status) => status === 'approved')) {
+        approvalStatus = 'approved';
+      } else if (statuses.some((status) => status === 'approved')) {
+        approvalStatus = 'partial';
+      } else {
+        approvalStatus = 'pending';
+      }
+    } else if (task.status === 'pending_approval') {
+      approvalStatus = 'pending';
+    }
+
+    res.json({
+      ...task,
+      approvalStatus,
+    });
   } catch (error: any) {
     console.error('Get task error:', error);
     res.status(500).json({ error: 'Failed to fetch task' });
@@ -507,6 +568,10 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
       amount,
       startDate,
       dueDate,
+      priorityFlag,
+      priorityNotes,
+      recurrenceType,
+      recurrenceRule,
     } = req.body;
 
     const task = await prisma.task.findUnique({
@@ -540,6 +605,10 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
     if (amount !== undefined) updateData.amount = amount ? parseFloat(amount) : null;
     if (startDate !== undefined) updateData.startDate = startDate ? new Date(startDate) : null;
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    if (priorityFlag !== undefined) updateData.priorityFlag = priorityFlag;
+    if (priorityNotes !== undefined) updateData.priorityNotes = priorityNotes;
+    if (recurrenceType !== undefined) updateData.recurrenceType = recurrenceType;
+    if (recurrenceRule !== undefined) updateData.recurrenceRule = recurrenceRule;
 
     const updatedTask = await prisma.task.update({
       where: { id },
@@ -642,6 +711,51 @@ export const updateTask = async (req: AuthRequest, res: Response): Promise<void>
         );
       }
     }
+
+    if (priorityFlag !== undefined && priorityFlag !== task.priorityFlag) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed priority`,
+        task.priorityFlag || 'None',
+        priorityFlag || 'None'
+      );
+    }
+
+    if (priorityNotes !== undefined && priorityNotes !== task.priorityNotes) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} updated priority notes`,
+        task.priorityNotes || '(empty)',
+        priorityNotes || '(empty)'
+      );
+    }
+
+    if (recurrenceType !== undefined && recurrenceType !== task.recurrenceType) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} changed recurrence`,
+        task.recurrenceType || 'none',
+        recurrenceType || 'none'
+      );
+    }
+
+    if (recurrenceRule !== undefined && recurrenceRule !== task.recurrenceRule) {
+      await createActivityLog(
+        id,
+        req.user!.userId,
+        'field_changed',
+        `${userName} updated recurrence details`,
+        task.recurrenceRule || '(none)',
+        recurrenceRule || '(none)'
+      );
+    }
+
 
     res.json(updatedTask);
   } catch (error: any) {

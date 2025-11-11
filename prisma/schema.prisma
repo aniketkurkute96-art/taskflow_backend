@@ -65,8 +65,12 @@ model Task {
   approvalTemplateId String?            @db.ObjectId
   approvalTemplate   ApprovalTemplate?  @relation(fields: [approvalTemplateId], references: [id])
   status             String             @default("open")
+  priorityFlag       String?
+  priorityNotes      String?
   startDate          DateTime?
   dueDate            DateTime?
+  recurrenceType     String?
+  recurrenceRule     String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
