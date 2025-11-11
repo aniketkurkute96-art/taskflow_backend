@@ -449,11 +449,19 @@ export const updateTaskStatus = async (req: AuthRequest, res: Response): Promise
 
 export const getApprovalBucket = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const pendingApprovals = await prisma.taskApprover.findMany({
-      where: {
-        approverUserId: req.user!.userId,
-        status: 'pending',
-      },
+    const { all } = req.query;
+    
+    // Build where clause - if 'all' param is true, fetch all approvals; otherwise just pending
+    const whereClause: any = {
+      approverUserId: req.user!.userId,
+    };
+    
+    if (!all || all !== 'true') {
+      whereClause.status = 'pending';
+    }
+
+    const approvals = await prisma.taskApprover.findMany({
+      where: whereClause,
       include: {
         task: {
           include: {
@@ -469,10 +477,10 @@ export const getApprovalBucket = async (req: AuthRequest, res: Response): Promis
           },
         },
       },
-      orderBy: { task: { createdAt: 'desc' } },
+      orderBy: { createdAt: 'desc' },
     });
 
-    res.json(pendingApprovals);
+    res.json(approvals);
   } catch (error: any) {
     console.error('Get approval bucket error:', error);
     res.status(500).json({ error: 'Failed to fetch approval bucket' });
